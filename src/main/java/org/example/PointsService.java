@@ -1,34 +1,46 @@
 package org.example;
 
 import java.sql.SQLException;
+import org.example.config.AppPointsProperties;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PointsService {
 
-    public static final int QUARTERLY_GIVING_ALLOWANCE = 20;
-
-    private final AwardGivenRepository awardGivenRepo;
-    private final AwardTypeRepository  awardTypeRepo;
-    private final PurchaseRepository   purchaseRepo;
-    private final StoreItemRepository  storeItemRepo;
+    private final AwardGivenRepository  awardGivenRepo;
+    private final AwardTypeRepository   awardTypeRepo;
+    private final PurchaseRepository    purchaseRepo;
+    private final StoreItemRepository   storeItemRepo;
+    private final TeamRepository        teamRepo;
+    private final TeamAwardRepository   teamAwardRepo;
+    private final AppPointsProperties   pointsProps;
 
     public PointsService(AwardGivenRepository awardGivenRepo,
                          AwardTypeRepository awardTypeRepo,
                          PurchaseRepository purchaseRepo,
-                         StoreItemRepository storeItemRepo) {
+                         StoreItemRepository storeItemRepo,
+                         TeamRepository teamRepo,
+                         TeamAwardRepository teamAwardRepo,
+                         AppPointsProperties pointsProps) {
         this.awardGivenRepo = awardGivenRepo;
         this.awardTypeRepo  = awardTypeRepo;
         this.purchaseRepo   = purchaseRepo;
         this.storeItemRepo  = storeItemRepo;
+        this.teamRepo       = teamRepo;
+        this.teamAwardRepo  = teamAwardRepo;
+        this.pointsProps    = pointsProps;
     }
+
+    // -------------------------------------------------------------------------
+    // Peer giving (person → person)
+    // -------------------------------------------------------------------------
 
     public int pointsGivenThisQuarter(int userId) throws SQLException {
         return awardGivenRepo.pointsGivenThisQuarter(userId);
     }
 
     public int givingBalanceThisQuarter(int userId) throws SQLException {
-        return QUARTERLY_GIVING_ALLOWANCE - pointsGivenThisQuarter(userId);
+        return pointsProps.getPeerGivingAllowance() - pointsGivenThisQuarter(userId);
     }
 
     public int totalPointsEarned(int userId) throws SQLException {
@@ -63,6 +75,39 @@ public class PointsService {
         int id = awardGivenRepo.insert(giverId, recipientId, awardTypeId, points, message);
         return new AwardGiven(id, giverId, recipientId, awardTypeId, points, message, null);
     }
+
+    // -------------------------------------------------------------------------
+    // Team giving (person → team)
+    // -------------------------------------------------------------------------
+
+    public int teamPointsGivenThisQuarter(int userId) throws SQLException {
+        return teamAwardRepo.teamPointsGivenThisQuarter(userId);
+    }
+
+    public int teamGivingBalanceThisQuarter(int userId) throws SQLException {
+        return pointsProps.getTeamGivingAllowance() - teamPointsGivenThisQuarter(userId);
+    }
+
+    public TeamAward awardTeam(int giverId, int teamId, int points, String message)
+            throws SQLException {
+        if (points <= 0) {
+            throw new IllegalArgumentException("Points must be greater than zero.");
+        }
+        if (!pointsProps.isAllowSelfTeamAward() && teamRepo.isMember(teamId, giverId)) {
+            throw new IllegalArgumentException("Cannot award your own team.");
+        }
+        int available = teamGivingBalanceThisQuarter(giverId);
+        if (points > available) {
+            throw new IllegalArgumentException(
+                "Insufficient team giving balance. Requested: " + points + ", available: " + available);
+        }
+        int id = teamAwardRepo.insert(giverId, teamId, points, message);
+        return new TeamAward(id, giverId, teamId, points, message, null);
+    }
+
+    // -------------------------------------------------------------------------
+    // Store purchases
+    // -------------------------------------------------------------------------
 
     public Purchase purchaseItem(int userId, int storeItemId) throws SQLException {
         StoreItem item = storeItemRepo.findById(storeItemId)

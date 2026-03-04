@@ -107,6 +107,53 @@ public class DatabaseInitializer {
         );
     }
 
+    /**
+     * Teams — groups of users that can receive recognition points.
+     */
+    private static void createTeamsTable(Statement stmt) throws SQLException {
+        stmt.execute(
+            "CREATE TABLE IF NOT EXISTS Teams (" +
+            "    id          INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "    name        TEXT    NOT NULL UNIQUE," +
+            "    description TEXT," +
+            "    created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))" +
+            ");"
+        );
+    }
+
+    /**
+     * TeamMemberships — many-to-many join between Users and Teams.
+     *   UNIQUE(user_id, team_id) prevents duplicate memberships.
+     */
+    private static void createTeamMembershipsTable(Statement stmt) throws SQLException {
+        stmt.execute(
+            "CREATE TABLE IF NOT EXISTS TeamMemberships (" +
+            "    id         INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "    user_id    INTEGER NOT NULL REFERENCES Users(id)," +
+            "    team_id    INTEGER NOT NULL REFERENCES Teams(id)," +
+            "    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))," +
+            "    UNIQUE(user_id, team_id)" +
+            ");"
+        );
+    }
+
+    /**
+     * TeamAwards — records of users awarding points to a team from their team giving pool.
+     *   Points accumulate on the team (not distributed to members).
+     */
+    private static void createTeamAwardsTable(Statement stmt) throws SQLException {
+        stmt.execute(
+            "CREATE TABLE IF NOT EXISTS TeamAwards (" +
+            "    id        INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "    giver_id  INTEGER NOT NULL REFERENCES Users(id)," +
+            "    team_id   INTEGER NOT NULL REFERENCES Teams(id)," +
+            "    points    INTEGER NOT NULL," +
+            "    message   TEXT," +
+            "    given_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))" +
+            ");"
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Entry point
     // -------------------------------------------------------------------------
@@ -124,6 +171,9 @@ public class DatabaseInitializer {
             createAwardsGivenTable(stmt);
             createStoreItemsTable(stmt);
             createPurchasesTable(stmt);
+            createTeamsTable(stmt);
+            createTeamMembershipsTable(stmt);
+            createTeamAwardsTable(stmt);
 
             System.out.println("Database initialization complete.");
 

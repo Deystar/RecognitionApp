@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getAwardTypes, createAwardType, getStoreItems, createStoreItem, getUsers, createUser } from '../api'
+import { getAwardTypes, createAwardType, getStoreItems, createStoreItem, getUsers, createUser,
+         getTeams, createTeam, addTeamMember, removeTeamMember } from '../api'
 import { useUser } from '../context/UserContext'
 
 function Alert({ msg }) {
@@ -32,10 +33,21 @@ export default function Admin() {
   const [siQty,  setSiQty]              = useState('')
   const [siAlert, setSiAlert]           = useState(null)
 
+  // Teams
+  const [teams, setTeams]               = useState([])
+  const [teamName, setTeamName]         = useState('')
+  const [teamDesc, setTeamDesc]         = useState('')
+  const [teamAlert, setTeamAlert]       = useState(null)
+  const [memberTeamId, setMemberTeamId] = useState('')
+  const [memberUserId, setMemberUserId] = useState('')
+  const [memberAlert, setMemberAlert]   = useState(null)
+  const [teamDetail, setTeamDetail]     = useState(null) // { team, members }
+
   function load() {
     getUsers().then(setUsers)
     getAwardTypes().then(setAwardTypes)
     getStoreItems().then(setStoreItems)
+    getTeams().then(setTeams)
   }
   useEffect(load, [])
 
@@ -69,14 +81,48 @@ export default function Admin() {
     } catch (err) { setSiAlert({ type: 'error', text: err.message }) }
   }
 
+  async function submitTeam(e) {
+    e.preventDefault(); setTeamAlert(null)
+    try {
+      await createTeam({ name: teamName, description: teamDesc })
+      setTeamName(''); setTeamDesc('')
+      setTeamAlert({ type: 'success', text: 'Team created!' })
+      load()
+    } catch (err) { setTeamAlert({ type: 'error', text: err.message }) }
+  }
+
+  async function submitAddMember(e) {
+    e.preventDefault(); setMemberAlert(null)
+    try {
+      await addTeamMember(Number(memberTeamId), Number(memberUserId))
+      setMemberAlert({ type: 'success', text: 'Member added!' })
+      load()
+      if (teamDetail && teamDetail.teamId === Number(memberTeamId)) loadTeamDetail(Number(memberTeamId))
+    } catch (err) { setMemberAlert({ type: 'error', text: err.message }) }
+  }
+
+  async function loadTeamDetail(teamId) {
+    const t = teams.find(t => t.id === teamId)
+    if (!t) return
+    // fetch members via the /api/teams/{id} endpoint
+    const data = await fetch(`/api/teams/${teamId}`).then(r => r.json())
+    setTeamDetail({ teamId, name: t.name, members: data.members || [] })
+  }
+
+  async function handleRemoveMember(teamId, userId) {
+    await removeTeamMember(teamId, userId)
+    load()
+    loadTeamDetail(teamId)
+  }
+
   return (
     <div>
-      <div className="page-title">Admin<div className="page-subtitle">Manage users, award types, and store items</div></div>
+      <div className="page-title">Admin<div className="page-subtitle">Manage users, award types, store items, and teams</div></div>
 
       <div className="tabs">
-        {['users','awards','store'].map(t => (
+        {['users','awards','store','teams'].map(t => (
           <button key={t} className={'tab-btn' + (tab === t ? ' active' : '')} onClick={() => setTab(t)}>
-            {{ users: '👥 Users', awards: '🏅 Award Types', store: '🛍️ Store Items' }[t]}
+            {{ users: '👥 Users', awards: '🏅 Award Types', store: '🛍️ Store Items', teams: '🏢 Teams' }[t]}
           </button>
         ))}
       </div>
@@ -133,6 +179,82 @@ export default function Admin() {
                     <td><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{a.pointsCost} pts</span></td></tr>
                 ))}</tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Teams */}
+      {tab === 'teams' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>Create Team</div>
+              <Alert msg={teamAlert} />
+              <form onSubmit={submitTeam}>
+                <div className="form-group"><label className="form-label">Team Name</label>
+                  <input className="form-input" value={teamName} onChange={e => setTeamName(e.target.value)} required placeholder="Engineering" /></div>
+                <div className="form-group"><label className="form-label">Description</label>
+                  <input className="form-input" value={teamDesc} onChange={e => setTeamDesc(e.target.value)} placeholder="Optional description" /></div>
+                <button className="btn btn-primary btn-block" type="submit">Create Team</button>
+              </form>
+            </div>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>All Teams ({teams.length})</div>
+              <div className="table-wrap">
+                <table><thead><tr><th>Name</th><th>Description</th><th>Members</th><th>Total Pts</th></tr></thead>
+                  <tbody>{teams.map(t => (
+                    <tr key={t.id}>
+                      <td style={{ fontWeight: 600 }}>{t.name}</td>
+                      <td style={{ color: 'var(--muted)' }}>{t.description || '—'}</td>
+                      <td>{t.memberCount}</td>
+                      <td><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{t.totalPoints} pts</span></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>Add Member to Team</div>
+              <Alert msg={memberAlert} />
+              <form onSubmit={submitAddMember}>
+                <div className="form-group"><label className="form-label">Team</label>
+                  <select className="form-select" value={memberTeamId} onChange={e => { setMemberTeamId(e.target.value); if (e.target.value) loadTeamDetail(Number(e.target.value)) }} required>
+                    <option value="">Select a team…</option>
+                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select></div>
+                <div className="form-group"><label className="form-label">User</label>
+                  <select className="form-select" value={memberUserId} onChange={e => setMemberUserId(e.target.value)} required>
+                    <option value="">Select a user…</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select></div>
+                <button className="btn btn-primary btn-block" type="submit">Add Member</button>
+              </form>
+            </div>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>
+                {teamDetail ? `Members of ${teamDetail.name}` : 'Select a team to manage members'}
+              </div>
+              {teamDetail && teamDetail.members.length === 0 && (
+                <div className="empty" style={{ padding: '16px 0' }}><div>No members yet</div></div>
+              )}
+              {teamDetail && teamDetail.members.length > 0 && (
+                <div className="table-wrap">
+                  <table><thead><tr><th>Name</th><th>Email</th><th></th></tr></thead>
+                    <tbody>{teamDetail.members.map(m => (
+                      <tr key={m.id}>
+                        <td style={{ fontWeight: 600 }}>{m.name}</td>
+                        <td style={{ color: 'var(--muted)' }}>{m.email}</td>
+                        <td><button className="btn" style={{ padding: '4px 10px', fontSize: 12, background: 'var(--red)', color: '#fff' }}
+                          onClick={() => handleRemoveMember(teamDetail.teamId, m.id)}>Remove</button></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>

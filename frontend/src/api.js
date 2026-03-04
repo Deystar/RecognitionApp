@@ -38,3 +38,13 @@ export const getPurchases   = (userId)      => req(`/store/purchases/${userId}`)
 
 // Config
 export const getConfig      = ()            => req('/config')
+
+// Teams
+export const getTeams         = ()                   => req('/teams')
+export const createTeam       = (data)               => req('/teams', { method: 'POST', body: JSON.stringify(data) })
+export const getTeam          = (id)                 => req(`/teams/${id}`)
+export const addTeamMember    = (teamId, userId)     => req(`/teams/${teamId}/members`, { method: 'POST', body: JSON.stringify({ userId }) })
+export const removeTeamMember = (teamId, userId)     => req(`/teams/${teamId}/members/${userId}`, { method: 'DELETE' })
+export const getUserTeams     = (userId)             => req(`/teams/user/${userId}`)
+export const awardTeam        = (data)               => req('/teams/award', { method: 'POST', body: JSON.stringify(data) })
+export const getTeamAwards    = (teamId)             => req(`/teams/${teamId}/awards`)

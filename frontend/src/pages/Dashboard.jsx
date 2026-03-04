@@ -35,7 +35,8 @@ export default function Dashboard() {
   if (!currentUser) return <p style={{ color: 'var(--muted)' }}>Select a user to view their dashboard.</p>
   if (loading)      return <p style={{ color: 'var(--muted)' }}>Loading…</p>
 
-  const givingPct = pts ? Math.round((pts.givingBalance / pts.givingAllowance) * 100) : 0
+  const givingPct     = pts ? Math.round((pts.givingBalance / pts.givingAllowance) * 100) : 0
+  const teamGivingPct = pts ? Math.round((pts.teamGivingBalance / pts.teamGivingAllowance) * 100) : 0
 
   return (
     <div>
@@ -67,6 +68,14 @@ export default function Dashboard() {
           <div className="stat-label">Total Spent</div>
           <div className="stat-value">{pts?.totalSpent ?? '—'}</div>
           <div className="stat-sub">pts redeemed in store</div>
+        </div>
+        <div className="stat-card" style={{ borderTop: '3px solid #0891B2' }}>
+          <div className="stat-label" style={{ color: '#0891B2' }}>Team Giving Balance</div>
+          <div className="stat-value">{pts?.teamGivingBalance ?? '—'}</div>
+          <div className="stat-sub">of {pts?.teamGivingAllowance} pts this quarter</div>
+          <div className="progress-bar-wrap">
+            <div className="progress-bar" style={{ width: teamGivingPct + '%', background: '#0891B2' }} />
+          </div>
         </div>
       </div>
 

@@ -35,3 +35,6 @@ export const getStoreItems  = ()            => req('/store/items')
 export const createStoreItem = (data)       => req('/store/items', { method: 'POST', body: JSON.stringify(data) })
 export const purchaseItem   = (userId, storeItemId) => req('/store/purchase', { method: 'POST', body: JSON.stringify({ userId, storeItemId }) })
 export const getPurchases   = (userId)      => req(`/store/purchases/${userId}`)
+
+// Config
+export const getConfig      = ()            => req('/config')

@@ -1,5 +1,6 @@
 package org.example.controller;
 
+import org.example.ExternalStoreService;
 import org.example.PointsService;
 import org.example.Purchase;
 import org.example.PurchaseRepository;
@@ -9,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -16,21 +18,26 @@ import java.util.Map;
 @RequestMapping("/api/store")
 public class StoreController {
 
-    private final StoreItemRepository storeItems;
-    private final PurchaseRepository  purchases;
-    private final PointsService       pointsService;
+    private final StoreItemRepository  storeItems;
+    private final PurchaseRepository   purchases;
+    private final PointsService        pointsService;
+    private final ExternalStoreService externalStoreService;
 
     public StoreController(StoreItemRepository storeItems,
                            PurchaseRepository purchases,
-                           PointsService pointsService) {
-        this.storeItems   = storeItems;
-        this.purchases    = purchases;
-        this.pointsService = pointsService;
+                           PointsService pointsService,
+                           ExternalStoreService externalStoreService) {
+        this.storeItems           = storeItems;
+        this.purchases            = purchases;
+        this.pointsService        = pointsService;
+        this.externalStoreService = externalStoreService;
     }
 
     @GetMapping("/items")
     public List<StoreItem> getItems() throws SQLException {
-        return storeItems.getAll();
+        List<StoreItem> combined = new ArrayList<>(storeItems.getAll());
+        combined.addAll(externalStoreService.fetchItems());
+        return combined;
     }
 
     @PostMapping("/items")

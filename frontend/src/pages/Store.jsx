@@ -1,21 +1,24 @@
 import { useState, useEffect } from 'react'
-import { getStoreItems, getPoints, purchaseItem } from '../api'
+import { getStoreItems, getPoints, purchaseItem, getConfig } from '../api'
 import { useUser } from '../context/UserContext'
 
 export default function Store() {
   const { currentUser }       = useUser()
-  const [items, setItems]     = useState([])
-  const [pts, setPts]         = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [alerts, setAlerts]   = useState({})
+  const [items, setItems]               = useState([])
+  const [pts, setPts]                   = useState(null)
+  const [loading, setLoading]           = useState(true)
+  const [alerts, setAlerts]             = useState({})
+  const [externalEnabled, setExternalEnabled] = useState(false)
 
   function loadData() {
     Promise.all([
       getStoreItems(),
-      currentUser ? getPoints(currentUser.id) : Promise.resolve(null)
-    ]).then(([i, p]) => {
+      currentUser ? getPoints(currentUser.id) : Promise.resolve(null),
+      getConfig()
+    ]).then(([i, p, cfg]) => {
       setItems(i)
       setPts(p)
+      setExternalEnabled(cfg?.externalStoreEnabled ?? false)
     }).finally(() => setLoading(false))
   }
 
@@ -59,8 +62,13 @@ export default function Store() {
               const canAfford  = pts && pts.spendableBalance >= item.pointsCost
               const alert      = alerts[item.id]
               return (
-                <div className="store-card" key={item.id}>
-                  <div className="store-card-name">{item.name}</div>
+                <div className="store-card" key={`${item.source}-${item.id}`}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div className="store-card-name" style={{ margin: 0 }}>{item.name}</div>
+                    {item.source === 'external' && (
+                      <span className="badge badge-external">External</span>
+                    )}
+                  </div>
                   {item.description && <div className="store-card-desc">{item.description}</div>}
                   <div className="store-card-cost">
                     {item.pointsCost} <span>pts</span>

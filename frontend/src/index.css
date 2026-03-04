@@ -98,8 +98,9 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
 }
-.badge-pts  { background: var(--primary-lt); color: var(--primary); margin-left: auto; }
-.badge-type { color: #fff; }
+.badge-pts      { background: var(--primary-lt); color: var(--primary); margin-left: auto; }
+.badge-type     { color: #fff; }
+.badge-external { background: #0EA5E9; color: #fff; }
 .badge-0 { background: #6366F1; }
 .badge-1 { background: #EC4899; }
 .badge-2 { background: #F59E0B; }

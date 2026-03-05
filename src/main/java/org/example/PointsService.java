@@ -105,53 +105,92 @@ public class PointsService {
     }
 
     /**
-     * Returns the ISO-8601 timestamp at which the current reset period began,
+     * Returns the LocalDateTime at which the current scheduled period began,
      * calculated from a fixed epoch (2024-01-01) and the admin-configured interval.
      */
-    private String computePeriodStart(int quantity, String unit) {
+    private LocalDateTime computeScheduledPeriodStart(int quantity, String unit) {
         LocalDateTime epoch = LocalDateTime.of(2024, 1, 1, 0, 0, 0);
         LocalDateTime now   = LocalDateTime.now();
-        LocalDateTime periodStart;
         switch (unit.toUpperCase()) {
             case "DAY": {
                 long days    = ChronoUnit.DAYS.between(epoch, now);
                 long periods = days / quantity;
-                periodStart  = epoch.plusDays(periods * quantity);
-                break;
+                return epoch.plusDays(periods * quantity);
             }
             case "WEEK": {
                 long days    = ChronoUnit.DAYS.between(epoch, now);
                 long stride  = (long) quantity * 7;
                 long periods = days / stride;
-                periodStart  = epoch.plusDays(periods * stride);
-                break;
+                return epoch.plusDays(periods * stride);
             }
             case "MONTH": {
                 long months  = ChronoUnit.MONTHS.between(epoch.toLocalDate(), now.toLocalDate());
                 long periods = months / quantity;
-                periodStart  = epoch.plusMonths(periods * quantity);
-                break;
+                return epoch.plusMonths(periods * quantity);
             }
             case "QUARTER": {
                 long months  = ChronoUnit.MONTHS.between(epoch.toLocalDate(), now.toLocalDate());
                 long stride  = (long) quantity * 3;
                 long periods = months / stride;
-                periodStart  = epoch.plusMonths(periods * stride);
-                break;
+                return epoch.plusMonths(periods * stride);
             }
             case "YEAR": {
                 long years   = ChronoUnit.YEARS.between(epoch.toLocalDate(), now.toLocalDate());
                 long periods = years / quantity;
-                periodStart  = epoch.plusYears(periods * quantity);
-                break;
+                return epoch.plusYears(periods * quantity);
             }
             default: {
                 long days    = ChronoUnit.DAYS.between(epoch, now);
                 long periods = days / 14;
-                periodStart  = epoch.plusDays(periods * 14);
+                return epoch.plusDays(periods * 14);
             }
         }
-        return periodStart.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+    }
+
+    /** Returns the LocalDateTime of the next scheduled reset boundary. */
+    private LocalDateTime computeNextScheduledReset(int quantity, String unit) {
+        LocalDateTime start = computeScheduledPeriodStart(quantity, unit);
+        switch (unit.toUpperCase()) {
+            case "DAY":     return start.plusDays(quantity);
+            case "WEEK":    return start.plusDays((long) quantity * 7);
+            case "MONTH":   return start.plusMonths(quantity);
+            case "QUARTER": return start.plusMonths((long) quantity * 3);
+            case "YEAR":    return start.plusYears(quantity);
+            default:        return start.plusDays(14);
+        }
+    }
+
+    /** Returns the ISO-8601 timestamp of the next scheduled reset. */
+    public String nextScheduledResetAt() throws SQLException {
+        int    quantity = appConfigRepo.getResetIntervalQuantity();
+        String unit     = appConfigRepo.getResetIntervalUnit();
+        return computeNextScheduledReset(quantity, unit)
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+    }
+
+    /**
+     * Effective period start = max(scheduledPeriodStart, lastResetAt).
+     * A manual "Reset Now" can push the effective start beyond the scheduled boundary,
+     * immediately restoring all users' allowances without waiting for the next schedule.
+     */
+    private String computeEffectivePeriodStart() throws SQLException {
+        int    quantity    = appConfigRepo.getResetIntervalQuantity();
+        String unit        = appConfigRepo.getResetIntervalUnit();
+        String scheduled   = computeScheduledPeriodStart(quantity, unit)
+                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+        String lastResetAt = appConfigRepo.getLastResetAt();
+        if (lastResetAt == null || lastResetAt.isEmpty()) return scheduled;
+        return lastResetAt.compareTo(scheduled) >= 0 ? lastResetAt : scheduled;
+    }
+
+    /**
+     * Immediately resets all users' giving balances by recording now as the last
+     * manual reset time. Returns the ISO-8601 timestamp of the next scheduled reset.
+     */
+    public String resetNow() throws SQLException {
+        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+        appConfigRepo.setLastResetAt(now);
+        return nextScheduledResetAt();
     }
 
     /** How many shout-outs the user is allowed to give per reset period. */
@@ -161,9 +200,7 @@ public class PointsService {
 
     /** How many shout-outs the user has given in the current reset period. */
     public int shoutOutsGivenThisPeriod(int userId) throws SQLException {
-        int    quantity    = appConfigRepo.getResetIntervalQuantity();
-        String unit        = appConfigRepo.getResetIntervalUnit();
-        String periodStart = computePeriodStart(quantity, unit);
+        String periodStart = computeEffectivePeriodStart();
         return shoutOutRepo.countGivenSince(userId, periodStart);
     }
 

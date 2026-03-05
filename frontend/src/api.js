@@ -42,6 +42,7 @@ export const setShoutOutValue     = (value)     => req('/config/shout-out-value'
 export const setTeamShoutOutValue  = (value)        => req('/config/team-shout-out-value', { method: 'PUT', body: JSON.stringify({ value }) })
 export const setShoutOutAllowance  = (value)        => req('/config/shout-out-allowance', { method: 'PUT', body: JSON.stringify({ value }) })
 export const setResetInterval      = (quantity, unit) => req('/config/reset-interval', { method: 'PUT', body: JSON.stringify({ quantity, unit }) })
+export const resetNow              = ()               => req('/config/reset-now', { method: 'POST' })
 
 // Shout-outs
 export const giveShoutOut         = (data)      => req('/shout-outs', { method: 'POST', body: JSON.stringify(data) })

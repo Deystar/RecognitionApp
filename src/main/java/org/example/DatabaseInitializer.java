@@ -197,6 +197,7 @@ public class DatabaseInitializer {
      *   shout_out_allowance:    how many shout-outs a user may give per reset period (default 10)
      *   reset_interval_quantity: numeric portion of the reset period (default 2)
      *   reset_interval_unit:    time unit for the reset period: DAY/WEEK/MONTH/QUARTER/YEAR (default WEEK)
+     *   last_reset_at:          ISO-8601 timestamp of the most recent manual reset (empty if never)
      */
     private static void createAppConfigTable(Statement stmt) throws SQLException {
         stmt.execute(
@@ -219,6 +220,9 @@ public class DatabaseInitializer {
         );
         stmt.execute(
             "INSERT OR IGNORE INTO AppConfig (key, value) VALUES ('reset_interval_unit', 'WEEK');"
+        );
+        stmt.execute(
+            "INSERT OR IGNORE INTO AppConfig (key, value) VALUES ('last_reset_at', '');"
         );
     }
 

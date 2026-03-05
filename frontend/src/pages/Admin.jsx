@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getConfig, setShoutOutValue, setTeamShoutOutValue, setShoutOutAllowance, setResetInterval, getStoreItems, createStoreItem, getUsers, createUser,
+import { getConfig, setShoutOutValue, setTeamShoutOutValue, setShoutOutAllowance, setResetInterval, resetNow, getStoreItems, createStoreItem, getUsers, createUser,
          getTeams, getTeamMemberships, createTeam, deleteTeam, addTeamMember, removeTeamMember } from '../api'
 import { useUser } from '../context/UserContext'
 
@@ -31,6 +31,7 @@ export default function Admin() {
   const [riqInput, setRiqInput]   = useState('2')      // reset interval quantity
   const [riuInput, setRiuInput]   = useState('WEEK')   // reset interval unit
   const [riAlert, setRiAlert]     = useState(null)
+  const [nextResetAt, setNextResetAt] = useState(null)
 
   // Store items
   const [storeItems, setStoreItems]     = useState([])
@@ -59,6 +60,7 @@ export default function Admin() {
       setAllowanceCurrent(cfg.shoutOutAllowance); setAllowanceInput(String(cfg.shoutOutAllowance))
       setRiqInput(String(cfg.resetIntervalQuantity))
       setRiuInput(cfg.resetIntervalUnit)
+      setNextResetAt(cfg.nextResetAt ?? null)
     })
     getStoreItems().then(setStoreItems)
     getTeams().then(setTeams)
@@ -117,7 +119,20 @@ export default function Admin() {
     e.preventDefault(); setRiAlert(null)
     try {
       await setResetInterval(Number(riqInput), riuInput)
-      setRiAlert({ type: 'success', text: 'Reset interval updated!' })
+      setRiAlert({ type: 'success', text: 'Reset schedule updated!' })
+      getConfig().then(cfg => setNextResetAt(cfg.nextResetAt ?? null))
+    } catch (err) { setRiAlert({ type: 'error', text: err.message }) }
+  }
+
+  async function handleResetNow() {
+    if (!window.confirm(
+      "Are you sure you want to reset all users' shout-out giving balances now?\n\nThis will immediately restore everyone's allowance to the configured amount."
+    )) return
+    setRiAlert(null)
+    try {
+      const result = await resetNow()
+      setNextResetAt(result.nextResetAt ?? null)
+      setRiAlert({ type: 'success', text: 'All shout-out balances have been reset!' })
     } catch (err) { setRiAlert({ type: 'error', text: err.message }) }
   }
 
@@ -295,7 +310,7 @@ export default function Admin() {
               </form>
             </div>
             <div className="card">
-              <div className="section-title" style={{ marginBottom: 16 }}>Reset Period</div>
+              <div className="section-title" style={{ marginBottom: 16 }}>Reset Schedule</div>
               <Alert msg={riAlert} />
               <form onSubmit={submitResetInterval}>
                 <div className="form-group">
@@ -317,10 +332,19 @@ export default function Admin() {
                     </select>
                   </div>
                 </div>
-                <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>
+                <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>
                   Currently: {allowanceCurrent ?? '—'} shout-out{allowanceCurrent !== 1 ? 's' : ''} every {riqInput} {riuInput.charAt(0) + riuInput.slice(1).toLowerCase()}(s)
                 </p>
-                <button className="btn btn-primary btn-block" type="submit">Save</button>
+                {nextResetAt && (
+                  <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>
+                    Next scheduled reset: <strong style={{ color: 'var(--text)' }}>{new Date(nextResetAt).toLocaleString()}</strong>
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-primary" style={{ flex: 1 }} type="submit">Save Schedule</button>
+                  <button className="btn" style={{ background: 'var(--red)', color: '#fff' }}
+                    type="button" onClick={handleResetNow}>Reset Now</button>
+                </div>
               </form>
             </div>
           </div>

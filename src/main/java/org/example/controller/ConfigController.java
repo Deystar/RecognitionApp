@@ -2,6 +2,7 @@ package org.example.controller;
 
 import org.example.AppConfigRepository;
 import org.example.ExternalStoreService;
+import org.example.PointsService;
 import org.example.config.AppPointsProperties;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,13 +19,16 @@ public class ConfigController {
     private final ExternalStoreService externalStoreService;
     private final AppPointsProperties  pointsProps;
     private final AppConfigRepository  appConfigRepo;
+    private final PointsService        pointsService;
 
     public ConfigController(ExternalStoreService externalStoreService,
                             AppPointsProperties pointsProps,
-                            AppConfigRepository appConfigRepo) {
+                            AppConfigRepository appConfigRepo,
+                            PointsService pointsService) {
         this.externalStoreService = externalStoreService;
         this.pointsProps          = pointsProps;
         this.appConfigRepo        = appConfigRepo;
+        this.pointsService        = pointsService;
     }
 
     @GetMapping
@@ -38,6 +42,7 @@ public class ConfigController {
         cfg.put("resetIntervalQuantity",   appConfigRepo.getResetIntervalQuantity());
         cfg.put("resetIntervalUnit",       appConfigRepo.getResetIntervalUnit());
         cfg.put("givingAllowance",         pointsProps.getPeerGivingAllowance());
+        cfg.put("nextResetAt",             pointsService.nextScheduledResetAt());
         return cfg;
     }
 
@@ -84,5 +89,11 @@ public class ConfigController {
         appConfigRepo.setResetIntervalQuantity(quantity);
         appConfigRepo.setResetIntervalUnit(unit);
         return ResponseEntity.ok(Map.of("resetIntervalQuantity", quantity, "resetIntervalUnit", unit));
+    }
+
+    @PostMapping("/reset-now")
+    public ResponseEntity<?> resetNow() throws SQLException {
+        String nextResetAt = pointsService.resetNow();
+        return ResponseEntity.ok(Map.of("nextResetAt", nextResetAt));
     }
 }

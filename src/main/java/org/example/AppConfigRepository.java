@@ -94,4 +94,12 @@ public class AppConfigRepository {
     public void setResetIntervalUnit(String unit) throws SQLException {
         setString("reset_interval_unit", unit.toUpperCase());
     }
+
+    public String getLastResetAt() throws SQLException {
+        return getString("last_reset_at", "");
+    }
+
+    public void setLastResetAt(String timestamp) throws SQLException {
+        setString("last_reset_at", timestamp);
+    }
 }

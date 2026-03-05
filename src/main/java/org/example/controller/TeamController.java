@@ -72,6 +72,24 @@ public class TeamController {
             .orElse(ResponseEntity.notFound().build());
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteTeam(@PathVariable int id) throws SQLException {
+        if (teamRepo.findById(id).isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            teamRepo.delete(id);
+            return ResponseEntity.ok(Map.of("deleted", id));
+        } catch (SQLException e) {
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/memberships")
+    public List<Map<String, Object>> getAllMemberships() throws SQLException {
+        return teamRepo.getAllMemberships();
+    }
+
     @GetMapping("/user/{userId}")
     public List<Team> getTeamsForUser(@PathVariable int userId) throws SQLException {
         return teamRepo.getTeamsForUser(userId);

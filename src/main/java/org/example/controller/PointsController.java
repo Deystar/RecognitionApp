@@ -22,13 +22,13 @@ public class PointsController {
     @GetMapping("/{userId}")
     public PointsSummary getSummary(@PathVariable int userId) throws SQLException {
         return new PointsSummary(
-            pointsProps.getPeerGivingAllowance(),
-            pointsService.givingBalanceThisQuarter(userId),
+            pointsService.shoutOutAllowance(),
+            pointsService.shoutOutGivingBalance(userId),
+            pointsService.shoutOutValue(),
+            pointsService.teamShoutOutValue(),
             pointsService.totalPointsEarned(userId),
             pointsService.totalPointsSpent(userId),
-            pointsService.spendableBalance(userId),
-            pointsProps.getTeamGivingAllowance(),
-            pointsService.teamGivingBalanceThisQuarter(userId)
+            pointsService.spendableBalance(userId)
         );
     }
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getAwardTypes, createAwardType, getStoreItems, createStoreItem, getUsers, createUser,
-         getTeams, createTeam, addTeamMember, removeTeamMember } from '../api'
+import { getConfig, setShoutOutValue, setTeamShoutOutValue, setShoutOutAllowance, setResetInterval, getStoreItems, createStoreItem, getUsers, createUser,
+         getTeams, getTeamMemberships, createTeam, deleteTeam, addTeamMember, removeTeamMember } from '../api'
 import { useUser } from '../context/UserContext'
 
 function Alert({ msg }) {
@@ -18,12 +18,19 @@ export default function Admin() {
   const [userEmail, setUserEmail] = useState('')
   const [userAlert, setUserAlert] = useState(null)
 
-  // Award types
-  const [awardTypes, setAwardTypes]     = useState([])
-  const [atName, setAtName]             = useState('')
-  const [atDesc, setAtDesc]             = useState('')
-  const [atCost, setAtCost]             = useState('')
-  const [atAlert, setAtAlert]           = useState(null)
+  // Settings
+  const [sovCurrent, setSovCurrent]     = useState(null)
+  const [sovInput, setSovInput]         = useState('')
+  const [sovAlert, setSovAlert]         = useState(null)
+  const [tsovCurrent, setTsovCurrent]   = useState(null)
+  const [tsovInput, setTsovInput]       = useState('')
+  const [tsovAlert, setTsovAlert]       = useState(null)
+  const [allowanceCurrent, setAllowanceCurrent] = useState(null)
+  const [allowanceInput, setAllowanceInput]     = useState('')
+  const [allowanceAlert, setAllowanceAlert]     = useState(null)
+  const [riqInput, setRiqInput]   = useState('2')      // reset interval quantity
+  const [riuInput, setRiuInput]   = useState('WEEK')   // reset interval unit
+  const [riAlert, setRiAlert]     = useState(null)
 
   // Store items
   const [storeItems, setStoreItems]     = useState([])
@@ -42,12 +49,27 @@ export default function Admin() {
   const [memberUserId, setMemberUserId] = useState('')
   const [memberAlert, setMemberAlert]   = useState(null)
   const [teamDetail, setTeamDetail]     = useState(null) // { team, members }
+  const [membershipMap, setMembershipMap] = useState({}) // { userId: ['Team A', 'Team B'] }
 
   function load() {
     getUsers().then(setUsers)
-    getAwardTypes().then(setAwardTypes)
+    getConfig().then(cfg => {
+      setSovCurrent(cfg.shoutOutValue); setSovInput(String(cfg.shoutOutValue))
+      setTsovCurrent(cfg.teamShoutOutValue); setTsovInput(String(cfg.teamShoutOutValue))
+      setAllowanceCurrent(cfg.shoutOutAllowance); setAllowanceInput(String(cfg.shoutOutAllowance))
+      setRiqInput(String(cfg.resetIntervalQuantity))
+      setRiuInput(cfg.resetIntervalUnit)
+    })
     getStoreItems().then(setStoreItems)
     getTeams().then(setTeams)
+    getTeamMemberships().then(memberships => {
+      const map = {}
+      memberships.forEach(({ userId, teamName }) => {
+        if (!map[userId]) map[userId] = []
+        map[userId].push(teamName)
+      })
+      setMembershipMap(map)
+    })
   }
   useEffect(load, [])
 
@@ -61,14 +83,42 @@ export default function Admin() {
     } catch (err) { setUserAlert({ type: 'error', text: err.message }) }
   }
 
-  async function submitAwardType(e) {
-    e.preventDefault(); setAtAlert(null)
+  async function submitShoutOutValue(e) {
+    e.preventDefault(); setSovAlert(null)
     try {
-      await createAwardType({ name: atName, description: atDesc, pointsCost: Number(atCost) })
-      setAtName(''); setAtDesc(''); setAtCost('')
-      setAtAlert({ type: 'success', text: 'Award type created!' })
-      load()
-    } catch (err) { setAtAlert({ type: 'error', text: err.message }) }
+      const v = Number(sovInput)
+      await setShoutOutValue(v)
+      setSovCurrent(v)
+      setSovAlert({ type: 'success', text: 'Individual shout-out value updated!' })
+    } catch (err) { setSovAlert({ type: 'error', text: err.message }) }
+  }
+
+  async function submitTeamShoutOutValue(e) {
+    e.preventDefault(); setTsovAlert(null)
+    try {
+      const v = Number(tsovInput)
+      await setTeamShoutOutValue(v)
+      setTsovCurrent(v)
+      setTsovAlert({ type: 'success', text: 'Team shout-out value updated!' })
+    } catch (err) { setTsovAlert({ type: 'error', text: err.message }) }
+  }
+
+  async function submitAllowance(e) {
+    e.preventDefault(); setAllowanceAlert(null)
+    try {
+      const v = Number(allowanceInput)
+      await setShoutOutAllowance(v)
+      setAllowanceCurrent(v)
+      setAllowanceAlert({ type: 'success', text: 'Shout-out allowance updated!' })
+    } catch (err) { setAllowanceAlert({ type: 'error', text: err.message }) }
+  }
+
+  async function submitResetInterval(e) {
+    e.preventDefault(); setRiAlert(null)
+    try {
+      await setResetInterval(Number(riqInput), riuInput)
+      setRiAlert({ type: 'success', text: 'Reset interval updated!' })
+    } catch (err) { setRiAlert({ type: 'error', text: err.message }) }
   }
 
   async function submitStoreItem(e) {
@@ -115,14 +165,26 @@ export default function Admin() {
     loadTeamDetail(teamId)
   }
 
+  async function handleDeleteTeam(teamId, teamName) {
+    if (!window.confirm(`Delete team "${teamName}"? This will also remove all memberships and awards.`)) return
+    try {
+      await deleteTeam(teamId)
+      if (teamDetail && teamDetail.teamId === teamId) setTeamDetail(null)
+      if (memberTeamId === String(teamId)) setMemberTeamId('')
+      load()
+    } catch (err) {
+      setTeamAlert({ type: 'error', text: err.message })
+    }
+  }
+
   return (
     <div>
-      <div className="page-title">Admin<div className="page-subtitle">Manage users, award types, store items, and teams</div></div>
+      <div className="page-title">Admin<div className="page-subtitle">Manage users, settings, store items, and teams</div></div>
 
       <div className="tabs">
-        {['users','awards','store','teams'].map(t => (
+        {['users','settings','store','teams'].map(t => (
           <button key={t} className={'tab-btn' + (tab === t ? ' active' : '')} onClick={() => setTab(t)}>
-            {{ users: '👥 Users', awards: '🏅 Award Types', store: '🛍️ Store Items', teams: '🏢 Teams' }[t]}
+            {{ users: '👥 Users', settings: '⚙️ Settings', store: '🛍️ Store Items', teams: '🏢 Teams' }[t]}
           </button>
         ))}
       </div>
@@ -144,9 +206,16 @@ export default function Admin() {
           <div className="card">
             <div className="section-title" style={{ marginBottom: 16 }}>All Users ({users.length})</div>
             <div className="table-wrap">
-              <table><thead><tr><th>Name</th><th>Email</th><th>Since</th></tr></thead>
+              <table><thead><tr><th>Name</th><th>Email</th><th>Since</th><th>Team(s)</th></tr></thead>
                 <tbody>{users.map(u => (
-                  <tr key={u.id}><td style={{ fontWeight: 600 }}>{u.name}</td><td style={{ color: 'var(--muted)' }}>{u.email}</td><td style={{ color: 'var(--muted)' }}>{u.createdAt?.slice(0,10)}</td></tr>
+                  <tr key={u.id}>
+                    <td style={{ fontWeight: 600 }}>{u.name}</td>
+                    <td style={{ color: 'var(--muted)' }}>{u.email}</td>
+                    <td style={{ color: 'var(--muted)' }}>{u.createdAt?.slice(0,10)}</td>
+                    <td style={{ color: membershipMap[u.id] ? 'inherit' : 'var(--muted)' }}>
+                      {membershipMap[u.id] ? membershipMap[u.id].join(', ') : '—'}
+                    </td>
+                  </tr>
                 ))}</tbody>
               </table>
             </div>
@@ -154,31 +223,105 @@ export default function Admin() {
         </div>
       )}
 
-      {/* Award Types */}
-      {tab === 'awards' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 16 }}>Add Award Type</div>
-            <Alert msg={atAlert} />
-            <form onSubmit={submitAwardType}>
-              <div className="form-group"><label className="form-label">Name</label>
-                <input className="form-input" value={atName} onChange={e => setAtName(e.target.value)} required placeholder="Above & Beyond" /></div>
-              <div className="form-group"><label className="form-label">Description</label>
-                <input className="form-input" value={atDesc} onChange={e => setAtDesc(e.target.value)} placeholder="Optional description" /></div>
-              <div className="form-group"><label className="form-label">Point Cost</label>
-                <input className="form-input" type="number" min="1" max="20" value={atCost} onChange={e => setAtCost(e.target.value)} required placeholder="10" /></div>
-              <button className="btn btn-primary btn-block" type="submit">Add Award Type</button>
-            </form>
+      {/* Settings */}
+      {tab === 'settings' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>Individual Shout-Out Value</div>
+              <Alert msg={sovAlert} />
+              <form onSubmit={submitShoutOutValue}>
+                <div className="form-group">
+                  <label className="form-label">Points per Individual Shout-Out</label>
+                  <input className="form-input" type="number" min="1" value={sovInput}
+                    onChange={e => setSovInput(e.target.value)} required placeholder="10" />
+                </div>
+                <button className="btn btn-primary btn-block" type="submit">Save</button>
+              </form>
+            </div>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>Current Settings</div>
+              <table><tbody>
+                <tr>
+                  <td style={{ color: 'var(--muted)', paddingRight: 24 }}>Individual shout-out value</td>
+                  <td><span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                    {sovCurrent !== null ? `${sovCurrent} pts` : '—'}
+                  </span></td>
+                </tr>
+                <tr>
+                  <td style={{ color: 'var(--muted)', paddingRight: 24, paddingTop: 8 }}>Team shout-out value</td>
+                  <td style={{ paddingTop: 8 }}><span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                    {tsovCurrent !== null ? `${tsovCurrent} pts` : '—'}
+                  </span></td>
+                </tr>
+              </tbody></table>
+              <p style={{ marginTop: 16, color: 'var(--muted)', fontSize: 13 }}>
+                Individual shout-outs cost the giver the individual value and the recipient earns that many points.
+                Team shout-outs cost the giver the team value; each eligible member earns that many points.
+              </p>
+            </div>
           </div>
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 16 }}>Award Types ({awardTypes.length})</div>
-            <div className="table-wrap">
-              <table><thead><tr><th>Name</th><th>Description</th><th>Cost</th></tr></thead>
-                <tbody>{awardTypes.map(a => (
-                  <tr key={a.id}><td style={{ fontWeight: 600 }}>{a.name}</td><td style={{ color: 'var(--muted)' }}>{a.description}</td>
-                    <td><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{a.pointsCost} pts</span></td></tr>
-                ))}</tbody>
-              </table>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>Team Shout-Out Value</div>
+              <Alert msg={tsovAlert} />
+              <form onSubmit={submitTeamShoutOutValue}>
+                <div className="form-group">
+                  <label className="form-label">Points per Team Shout-Out (per member)</label>
+                  <input className="form-input" type="number" min="1" value={tsovInput}
+                    onChange={e => setTsovInput(e.target.value)} required placeholder="5" />
+                </div>
+                <button className="btn btn-primary btn-block" type="submit">Save</button>
+              </form>
+            </div>
+            <div className="card" style={{ display: 'flex', alignItems: 'flex-start' }}>
+              <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
+                When a team receives a shout-out, every eligible member (excluding the giver if they belong to the team)
+                earns this many points. The giver uses one shout-out from their allowance.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>Shout-Out Allowance</div>
+              <Alert msg={allowanceAlert} />
+              <form onSubmit={submitAllowance}>
+                <div className="form-group">
+                  <label className="form-label">Shout-Outs per Period</label>
+                  <input className="form-input" type="number" min="1" value={allowanceInput}
+                    onChange={e => setAllowanceInput(e.target.value)} required placeholder="10" />
+                </div>
+                <button className="btn btn-primary btn-block" type="submit">Save</button>
+              </form>
+            </div>
+            <div className="card">
+              <div className="section-title" style={{ marginBottom: 16 }}>Reset Period</div>
+              <Alert msg={riAlert} />
+              <form onSubmit={submitResetInterval}>
+                <div className="form-group">
+                  <label className="form-label">Reset shout-out balance every</label>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <select className="form-select" style={{ width: 100 }} value={riqInput}
+                      onChange={e => setRiqInput(e.target.value)}>
+                      {Array.from({ length: 100 }, (_, i) => i + 1).map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                    <select className="form-select" style={{ flex: 1 }} value={riuInput}
+                      onChange={e => setRiuInput(e.target.value)}>
+                      <option value="DAY">Day(s)</option>
+                      <option value="WEEK">Week(s)</option>
+                      <option value="MONTH">Month(s)</option>
+                      <option value="QUARTER">Quarter(s)</option>
+                      <option value="YEAR">Year(s)</option>
+                    </select>
+                  </div>
+                </div>
+                <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>
+                  Currently: {allowanceCurrent ?? '—'} shout-out{allowanceCurrent !== 1 ? 's' : ''} every {riqInput} {riuInput.charAt(0) + riuInput.slice(1).toLowerCase()}(s)
+                </p>
+                <button className="btn btn-primary btn-block" type="submit">Save</button>
+              </form>
             </div>
           </div>
         </div>
@@ -202,13 +345,15 @@ export default function Admin() {
             <div className="card">
               <div className="section-title" style={{ marginBottom: 16 }}>All Teams ({teams.length})</div>
               <div className="table-wrap">
-                <table><thead><tr><th>Name</th><th>Description</th><th>Members</th><th>Total Pts</th></tr></thead>
+                <table><thead><tr><th>Name</th><th>Description</th><th>Members</th><th>Total Pts</th><th></th></tr></thead>
                   <tbody>{teams.map(t => (
                     <tr key={t.id}>
                       <td style={{ fontWeight: 600 }}>{t.name}</td>
                       <td style={{ color: 'var(--muted)' }}>{t.description || '—'}</td>
                       <td>{t.memberCount}</td>
                       <td><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{t.totalPoints} pts</span></td>
+                      <td><button className="btn" style={{ padding: '4px 10px', fontSize: 12, background: 'var(--red)', color: '#fff' }}
+                        onClick={() => handleDeleteTeam(t.id, t.name)}>Delete</button></td>
                     </tr>
                   ))}</tbody>
                 </table>

@@ -37,11 +37,23 @@ export const purchaseItem   = (userId, storeItemId) => req('/store/purchase', { 
 export const getPurchases   = (userId)      => req(`/store/purchases/${userId}`)
 
 // Config
-export const getConfig      = ()            => req('/config')
+export const getConfig           = ()           => req('/config')
+export const setShoutOutValue     = (value)     => req('/config/shout-out-value', { method: 'PUT', body: JSON.stringify({ value }) })
+export const setTeamShoutOutValue  = (value)        => req('/config/team-shout-out-value', { method: 'PUT', body: JSON.stringify({ value }) })
+export const setShoutOutAllowance  = (value)        => req('/config/shout-out-allowance', { method: 'PUT', body: JSON.stringify({ value }) })
+export const setResetInterval      = (quantity, unit) => req('/config/reset-interval', { method: 'PUT', body: JSON.stringify({ quantity, unit }) })
+
+// Shout-outs
+export const giveShoutOut         = (data)      => req('/shout-outs', { method: 'POST', body: JSON.stringify(data) })
+export const getShoutOutFeed      = (limit = 50) => req(`/shout-outs/feed?limit=${limit}`)
+export const getShoutOutsReceived = (userId)    => req(`/shout-outs/received/${userId}`)
+export const getShoutOutsGiven    = (userId)    => req(`/shout-outs/given/${userId}`)
 
 // Teams
-export const getTeams         = ()                   => req('/teams')
-export const createTeam       = (data)               => req('/teams', { method: 'POST', body: JSON.stringify(data) })
+export const getTeams            = ()                   => req('/teams')
+export const getTeamMemberships  = ()                   => req('/teams/memberships')
+export const createTeam          = (data)               => req('/teams', { method: 'POST', body: JSON.stringify(data) })
+export const deleteTeam       = (id)                 => req(`/teams/${id}`, { method: 'DELETE' })
 export const getTeam          = (id)                 => req(`/teams/${id}`)
 export const addTeamMember    = (teamId, userId)     => req(`/teams/${teamId}/members`, { method: 'POST', body: JSON.stringify({ userId }) })
 export const removeTeamMember = (teamId, userId)     => req(`/teams/${teamId}/members/${userId}`, { method: 'DELETE' })

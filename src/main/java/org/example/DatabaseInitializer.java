@@ -154,6 +154,74 @@ public class DatabaseInitializer {
         );
     }
 
+    /**
+     * ShoutOuts — one row per shout-out event (individual or team).
+     *   recipient_user_id: set for individual shout-outs, null for team
+     *   recipient_team_id: set for team shout-outs, null for individual
+     *   points: cost deducted from the giver's giving balance this quarter
+     */
+    private static void createShoutOutsTable(Statement stmt) throws SQLException {
+        stmt.execute(
+            "CREATE TABLE IF NOT EXISTS ShoutOuts (" +
+            "    id                INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "    giver_id          INTEGER NOT NULL REFERENCES Users(id)," +
+            "    recipient_user_id INTEGER REFERENCES Users(id)," +
+            "    recipient_team_id INTEGER REFERENCES Teams(id)," +
+            "    points            INTEGER NOT NULL," +
+            "    message           TEXT," +
+            "    given_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))" +
+            ");"
+        );
+    }
+
+    /**
+     * ShoutOutRecipients — one row per user who actually received points.
+     *   Individual shout-out: one row (the direct recipient).
+     *   Team shout-out: one row per qualifying member (giver excluded if they are a member).
+     */
+    private static void createShoutOutRecipientsTable(Statement stmt) throws SQLException {
+        stmt.execute(
+            "CREATE TABLE IF NOT EXISTS ShoutOutRecipients (" +
+            "    id           INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "    shout_out_id INTEGER NOT NULL REFERENCES ShoutOuts(id)," +
+            "    user_id      INTEGER NOT NULL REFERENCES Users(id)," +
+            "    points       INTEGER NOT NULL" +
+            ");"
+        );
+    }
+
+    /**
+     * AppConfig — key/value store for admin-configurable runtime settings.
+     *   shout_out_value:        how many points each individual shout-out awards (default 10)
+     *   team_shout_out_value:   how many points each team shout-out awards per member (default 5)
+     *   shout_out_allowance:    how many shout-outs a user may give per reset period (default 10)
+     *   reset_interval_quantity: numeric portion of the reset period (default 2)
+     *   reset_interval_unit:    time unit for the reset period: DAY/WEEK/MONTH/QUARTER/YEAR (default WEEK)
+     */
+    private static void createAppConfigTable(Statement stmt) throws SQLException {
+        stmt.execute(
+            "CREATE TABLE IF NOT EXISTS AppConfig (" +
+            "    key   TEXT PRIMARY KEY," +
+            "    value TEXT NOT NULL" +
+            ");"
+        );
+        stmt.execute(
+            "INSERT OR IGNORE INTO AppConfig (key, value) VALUES ('shout_out_value', '10');"
+        );
+        stmt.execute(
+            "INSERT OR IGNORE INTO AppConfig (key, value) VALUES ('team_shout_out_value', '5');"
+        );
+        stmt.execute(
+            "INSERT OR IGNORE INTO AppConfig (key, value) VALUES ('shout_out_allowance', '10');"
+        );
+        stmt.execute(
+            "INSERT OR IGNORE INTO AppConfig (key, value) VALUES ('reset_interval_quantity', '2');"
+        );
+        stmt.execute(
+            "INSERT OR IGNORE INTO AppConfig (key, value) VALUES ('reset_interval_unit', 'WEEK');"
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Entry point
     // -------------------------------------------------------------------------
@@ -174,6 +242,9 @@ public class DatabaseInitializer {
             createTeamsTable(stmt);
             createTeamMembershipsTable(stmt);
             createTeamAwardsTable(stmt);
+            createShoutOutsTable(stmt);
+            createShoutOutRecipientsTable(stmt);
+            createAppConfigTable(stmt);
 
             System.out.println("Database initialization complete.");
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getAwardFeed } from '../api'
+import { getShoutOutFeed } from '../api'
 
 function initials(name) {
   return name ? name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : '?'
@@ -22,7 +22,7 @@ export default function Feed() {
   const [error, setError]     = useState(null)
 
   useEffect(() => {
-    getAwardFeed(50)
+    getShoutOutFeed(50)
       .then(setFeed)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -35,11 +35,14 @@ export default function Feed() {
     <div>
       <div className="page-title">
         Recognition Feed
-        <div className="page-subtitle">{feed.length} recent recognitions</div>
+        <div className="page-subtitle">{feed.length} recent shout-outs</div>
       </div>
 
       {feed.length === 0
-        ? <div className="empty"><div className="empty-icon">🌟</div><div className="empty-text">No recognitions yet — be the first to give one!</div></div>
+        ? <div className="empty">
+            <div className="empty-icon">📣</div>
+            <div className="empty-text">No shout-outs yet — be the first to give one!</div>
+          </div>
         : <div className="feed">
             {feed.map((item, i) => (
               <div className="feed-card" key={item.id}>
@@ -51,7 +54,9 @@ export default function Feed() {
                       <span className="from"> · from {item.giverName}</span>
                     </div>
                   </div>
-                  <span className={`badge badge-type badge-${i % 5}`}>{item.awardTypeName}</span>
+                  <span className={`badge badge-type badge-${i % 5}`}>
+                    {item.team ? '🏢 Team' : '👤 Individual'}
+                  </span>
                   <span className="badge badge-pts">+{item.points} pts</span>
                 </div>
                 {item.message && <div className="feed-message">"{item.message}"</div>}

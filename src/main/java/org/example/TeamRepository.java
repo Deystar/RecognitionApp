@@ -2,7 +2,9 @@ package org.example;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
@@ -11,14 +13,12 @@ public class TeamRepository {
 
     private static final String TEAM_SELECT =
         "SELECT t.id, t.name, t.description, t.created_at, " +
-        "       COALESCE(SUM(ta.points), 0) AS total_points, " +
-        "       COUNT(DISTINCT tm.id) AS member_count " +
-        "FROM Teams t " +
-        "LEFT JOIN TeamAwards ta ON ta.team_id = t.id " +
-        "LEFT JOIN TeamMemberships tm ON tm.team_id = t.id ";
+        "       COALESCE((SELECT SUM(ta.points) FROM TeamAwards ta WHERE ta.team_id = t.id), 0) AS total_points, " +
+        "       (SELECT COUNT(*) FROM TeamMemberships tm WHERE tm.team_id = t.id) AS member_count " +
+        "FROM Teams t ";
 
     public List<Team> getAll() throws SQLException {
-        String sql = TEAM_SELECT + "GROUP BY t.id ORDER BY t.name";
+        String sql = TEAM_SELECT + "ORDER BY t.name";
         List<Team> list = new ArrayList<>();
         try (Connection conn = DatabaseInitializer.connect();
              PreparedStatement ps = conn.prepareStatement(sql);
@@ -29,7 +29,7 @@ public class TeamRepository {
     }
 
     public Optional<Team> findById(int id) throws SQLException {
-        String sql = TEAM_SELECT + "WHERE t.id = ? GROUP BY t.id";
+        String sql = TEAM_SELECT + "WHERE t.id = ?";
         try (Connection conn = DatabaseInitializer.connect();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
@@ -97,16 +97,64 @@ public class TeamRepository {
         return list;
     }
 
+    public void delete(int teamId) throws SQLException {
+        try (Connection conn = DatabaseInitializer.connect()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM TeamAwards WHERE team_id = ?")) {
+                    ps.setInt(1, teamId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM TeamMemberships WHERE team_id = ?")) {
+                    ps.setInt(1, teamId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM Teams WHERE id = ?")) {
+                    ps.setInt(1, teamId);
+                    ps.executeUpdate();
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        }
+    }
+
     public List<Team> getTeamsForUser(int userId) throws SQLException {
         String sql = TEAM_SELECT +
-            "JOIN TeamMemberships tm2 ON tm2.team_id = t.id AND tm2.user_id = ? " +
-            "GROUP BY t.id ORDER BY t.name";
+            "WHERE EXISTS (SELECT 1 FROM TeamMemberships tm WHERE tm.team_id = t.id AND tm.user_id = ?) " +
+            "ORDER BY t.name";
         List<Team> list = new ArrayList<>();
         try (Connection conn = DatabaseInitializer.connect();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) list.add(mapRow(rs));
+            }
+        }
+        return list;
+    }
+
+    public List<Map<String, Object>> getAllMemberships() throws SQLException {
+        String sql =
+            "SELECT tm.user_id, t.id AS team_id, t.name AS team_name " +
+            "FROM TeamMemberships tm " +
+            "JOIN Teams t ON t.id = tm.team_id " +
+            "ORDER BY tm.user_id, t.name";
+        List<Map<String, Object>> list = new ArrayList<>();
+        try (Connection conn = DatabaseInitializer.connect();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("userId",    rs.getInt("user_id"));
+                row.put("teamId",    rs.getInt("team_id"));
+                row.put("teamName",  rs.getString("team_name"));
+                list.add(row);
             }
         }
         return list;

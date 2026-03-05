@@ -1,42 +1,52 @@
 import { useState, useEffect } from 'react'
-import { getPoints, getAwardsReceived, getAwardsGiven, getPurchases, getAwardTypes, getStoreItems } from '../api'
+import { getPoints, getShoutOutsReceived, getShoutOutsGiven, getPurchases, getStoreItems, getUsers, getTeams } from '../api'
 import { useUser } from '../context/UserContext'
 
 export default function Dashboard() {
   const { currentUser } = useUser()
-  const [pts, setPts]           = useState(null)
-  const [received, setReceived] = useState([])
-  const [given, setGiven]       = useState([])
-  const [purchases, setPurchases] = useState([])
-  const [awardTypes, setAwardTypes] = useState({})
+  const [pts, setPts]               = useState(null)
+  const [received, setReceived]     = useState([])
+  const [given, setGiven]           = useState([])
+  const [purchases, setPurchases]   = useState([])
   const [storeItems, setStoreItems] = useState({})
-  const [loading, setLoading]   = useState(true)
+  const [userMap, setUserMap]       = useState({})
+  const [teamMap, setTeamMap]       = useState({})
+  const [loading, setLoading]       = useState(true)
 
   useEffect(() => {
     if (!currentUser) return
     setLoading(true)
     Promise.all([
       getPoints(currentUser.id),
-      getAwardsReceived(currentUser.id),
-      getAwardsGiven(currentUser.id),
+      getShoutOutsReceived(currentUser.id),
+      getShoutOutsGiven(currentUser.id),
       getPurchases(currentUser.id),
-      getAwardTypes(),
-      getStoreItems()
-    ]).then(([p, rec, giv, pur, at, si]) => {
+      getStoreItems(),
+      getUsers(),
+      getTeams(),
+    ]).then(([p, rec, giv, pur, si, users, teams]) => {
       setPts(p)
       setReceived(rec)
       setGiven(giv)
       setPurchases(pur)
-      setAwardTypes(Object.fromEntries(at.map(a => [a.id, a])))
       setStoreItems(Object.fromEntries(si.map(s => [s.id, s])))
+      setUserMap(Object.fromEntries(users.map(u => [u.id, u])))
+      setTeamMap(Object.fromEntries(teams.map(t => [t.id, t])))
     }).finally(() => setLoading(false))
   }, [currentUser])
 
   if (!currentUser) return <p style={{ color: 'var(--muted)' }}>Select a user to view their dashboard.</p>
   if (loading)      return <p style={{ color: 'var(--muted)' }}>Loading…</p>
 
-  const givingPct     = pts ? Math.round((pts.givingBalance / pts.givingAllowance) * 100) : 0
-  const teamGivingPct = pts ? Math.round((pts.teamGivingBalance / pts.teamGivingAllowance) * 100) : 0
+  const givingPct = pts && pts.givingAllowance > 0
+    ? Math.min(100, Math.round(((pts.givingAllowance - pts.givingBalance) / pts.givingAllowance) * 100))
+    : 0
+
+  function shoutOutLabel(so) {
+    if (so.recipientTeamId != null) return teamMap[so.recipientTeamId]?.name ?? `Team #${so.recipientTeamId}`
+    if (so.recipientUserId != null) return userMap[so.recipientUserId]?.name ?? `User #${so.recipientUserId}`
+    return 'Unknown'
+  }
 
   return (
     <div>
@@ -47,9 +57,9 @@ export default function Dashboard() {
 
       <div className="stats-row">
         <div className="stat-card amber">
-          <div className="stat-label">Giving Balance</div>
+          <div className="stat-label">Shout-Outs Remaining</div>
           <div className="stat-value">{pts?.givingBalance ?? '—'}</div>
-          <div className="stat-sub">of {pts?.givingAllowance} pts this quarter</div>
+          <div className="stat-sub">of {pts?.givingAllowance ?? '—'} this period</div>
           <div className="progress-bar-wrap">
             <div className="progress-bar" style={{ width: givingPct + '%', background: 'var(--amber)' }} />
           </div>
@@ -59,7 +69,7 @@ export default function Dashboard() {
           <div className="stat-value">{pts?.spendableBalance ?? '—'}</div>
           <div className="stat-sub">pts to redeem in store</div>
         </div>
-        <div className="stat-card indigo">
+        <div className="stat-card">
           <div className="stat-label">Total Earned</div>
           <div className="stat-value">{pts?.totalEarned ?? '—'}</div>
           <div className="stat-sub">pts received all time</div>
@@ -69,33 +79,29 @@ export default function Dashboard() {
           <div className="stat-value">{pts?.totalSpent ?? '—'}</div>
           <div className="stat-sub">pts redeemed in store</div>
         </div>
-        <div className="stat-card" style={{ borderTop: '3px solid #0891B2' }}>
-          <div className="stat-label" style={{ color: '#0891B2' }}>Team Giving Balance</div>
-          <div className="stat-value">{pts?.teamGivingBalance ?? '—'}</div>
-          <div className="stat-sub">of {pts?.teamGivingAllowance} pts this quarter</div>
-          <div className="progress-bar-wrap">
-            <div className="progress-bar" style={{ width: teamGivingPct + '%', background: '#0891B2' }} />
-          </div>
-        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
 
         <div className="card">
           <div className="section-header">
-            <div className="section-title">Awards Received</div>
+            <div className="section-title">Shout-Outs Received</div>
             <span style={{ fontSize: 13, color: 'var(--muted)' }}>{received.length}</span>
           </div>
           {received.length === 0
-            ? <div className="empty" style={{ padding: '24px 0' }}><div>No awards received yet</div></div>
+            ? <div className="empty" style={{ padding: '24px 0' }}><div>No shout-outs received yet</div></div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {received.slice(0, 5).map(a => (
-                  <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                {received.slice(0, 5).map(so => (
+                  <div key={so.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                     <div>
-                      <span style={{ fontWeight: 600 }}>{awardTypes[a.awardTypeId]?.name ?? 'Award'}</span>
-                      <span style={{ color: 'var(--muted)' }}> · {a.givenAt?.slice(0, 10)}</span>
+                      <span style={{ fontWeight: 600 }}>from {userMap[so.giverId]?.name ?? `User #${so.giverId}`}</span>
+                      {so.recipientTeamId != null && (
+                        <span style={{ color: 'var(--muted)' }}> · via {teamMap[so.recipientTeamId]?.name}</span>
+                      )}
+                      <span style={{ color: 'var(--muted)' }}> · {so.givenAt?.slice(0, 10)}</span>
+                      {so.message && <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>"{so.message}"</div>}
                     </div>
-                    <span style={{ color: 'var(--primary)', fontWeight: 600 }}>+{a.points} pts</span>
+                    <span style={{ color: 'var(--primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>+{so.points} pts</span>
                   </div>
                 ))}
               </div>
@@ -104,19 +110,23 @@ export default function Dashboard() {
 
         <div className="card">
           <div className="section-header">
-            <div className="section-title">Awards Given</div>
+            <div className="section-title">Shout-Outs Given</div>
             <span style={{ fontSize: 13, color: 'var(--muted)' }}>{given.length}</span>
           </div>
           {given.length === 0
-            ? <div className="empty" style={{ padding: '24px 0' }}><div>No awards given yet</div></div>
+            ? <div className="empty" style={{ padding: '24px 0' }}><div>No shout-outs given yet</div></div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {given.slice(0, 5).map(a => (
-                  <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                {given.slice(0, 5).map(so => (
+                  <div key={so.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                     <div>
-                      <span style={{ fontWeight: 600 }}>{awardTypes[a.awardTypeId]?.name ?? 'Award'}</span>
-                      <span style={{ color: 'var(--muted)' }}> · {a.givenAt?.slice(0, 10)}</span>
+                      <span style={{ fontWeight: 600 }}>to {shoutOutLabel(so)}</span>
+                      {so.recipientTeamId != null && (
+                        <span style={{ color: 'var(--muted)' }}> (team)</span>
+                      )}
+                      <span style={{ color: 'var(--muted)' }}> · {so.givenAt?.slice(0, 10)}</span>
+                      {so.message && <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>"{so.message}"</div>}
                     </div>
-                    <span style={{ color: 'var(--amber)', fontWeight: 600 }}>-{a.points} pts</span>
+                    <span style={{ color: 'var(--amber)', fontWeight: 600, whiteSpace: 'nowrap' }}>-{so.points} pts</span>
                   </div>
                 ))}
               </div>
